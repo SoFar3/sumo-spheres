@@ -2,6 +2,20 @@ export interface PlayerProps {
   position: [number, number, number];
   color: string;
   isPlayer?: boolean;
+  playerId?: string;
+  playerName?: string;
+}
+
+export interface PlayerData {
+  id: string;
+  name: string;
+  position: [number, number, number];
+  color: string;
+  score: number;
+  roomId: string;
+  socketId?: string;
+  rotation?: [number, number, number];
+  velocity?: [number, number, number];
 }
 
 export interface ArenaProps {

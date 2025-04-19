@@ -1,16 +1,20 @@
 import { useRef, useEffect, useState } from 'react';
 import { useSphere } from '@react-three/cannon';
 import { useFrame } from '@react-three/fiber';
+import { Text, Billboard } from '@react-three/drei';
 import { useKeyboardControls } from '../../hooks/useKeyboardControls';
 import { PlayerProps } from '../../types';
+import { useMultiplayer } from '../../contexts/MultiplayerContext';
 import * as THREE from 'three';
 
-export const Player = ({ position, color, isPlayer = false }: PlayerProps) => {
+export const Player = ({ position, color, isPlayer = false, playerName }: PlayerProps) => {
   const keys = useKeyboardControls();
+  const { updatePosition, sendPlayerAction, reportPlayerFell } = useMultiplayer();
   const [fallen, setFallen] = useState(false);
   const [canJump, setCanJump] = useState(true);
   const initialPosition = useRef(position);
   const jumpCooldown = useRef<number | null>(null);
+  const lastReportedPosition = useRef<[number, number, number]>(position);
   
   // Create the physics sphere
   const [ref, api] = useSphere(() => ({
@@ -84,8 +88,9 @@ export const Player = ({ position, color, isPlayer = false }: PlayerProps) => {
         console.log('Player fell off the arena!');
         setFallen(true);
         
-        // If it's the player, respawn after a short delay
+        // Report to server if this is the local player
         if (isPlayer) {
+          reportPlayerFell();
           setTimeout(respawn, 1000);
         } else {
           // For non-player balls, respawn immediately with a small random delay to prevent physics glitches
@@ -95,13 +100,16 @@ export const Player = ({ position, color, isPlayer = false }: PlayerProps) => {
     }, 100); // Check every 100ms
     
     return () => clearInterval(fallCheckInterval);
-  }, [fallen, isPlayer]);
+  }, [fallen, isPlayer, reportPlayerFell]);
   
   // Function to handle jumping
   const handleJump = () => {
     if (canJump && isPlayer && !fallen) {
       // Apply an upward impulse for jumping
       api.applyImpulse([0, 10, 0], [0, 0, 0]);
+      
+      // Notify other players about the jump action
+      sendPlayerAction('jump');
       
       // Set jump cooldown
       setCanJump(false);
@@ -127,9 +135,24 @@ export const Player = ({ position, color, isPlayer = false }: PlayerProps) => {
     };
   }, []);
   
-  // Update player position based on keyboard input
+  // Update player position based on keyboard input and send updates to server
   useFrame(({ camera }) => {
     if (isPlayer && !fallen) {
+      // Send position updates to server (throttled)
+      const currentPos = [currentPosition.current.x, currentPosition.current.y, currentPosition.current.z] as [number, number, number];
+      const currentVel = [velocity.current.x, velocity.current.y, velocity.current.z] as [number, number, number];
+      
+      // Only send updates if position has changed significantly
+      const positionChanged = (
+        Math.abs(currentPos[0] - lastReportedPosition.current[0]) > 0.1 ||
+        Math.abs(currentPos[1] - lastReportedPosition.current[1]) > 0.1 ||
+        Math.abs(currentPos[2] - lastReportedPosition.current[2]) > 0.1
+      );
+      
+      if (positionChanged) {
+        updatePosition(currentPos, undefined, currentVel);
+        lastReportedPosition.current = currentPos;
+      }
       // Get camera's forward and right vectors for movement relative to camera
       const cameraForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
       const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
@@ -167,10 +190,49 @@ export const Player = ({ position, color, isPlayer = false }: PlayerProps) => {
     }
   });
 
+  // Create a reference for the name tag
+  const nameTagRef = useRef<THREE.Group>(null);
+  
+  // Update the name tag position to follow the ball
+  useFrame(() => {
+    if (nameTagRef.current) {
+      nameTagRef.current.position.x = currentPosition.current.x;
+      nameTagRef.current.position.y = currentPosition.current.y + 0.7; // Position above the ball
+      nameTagRef.current.position.z = currentPosition.current.z;
+    }
+  });
+  
   return (
-    <mesh ref={ref} castShadow receiveShadow>
-      <sphereGeometry args={[0.5, 32, 32]} />
-      <meshStandardMaterial color={color} />
-    </mesh>
+    <group>
+      {/* The physics-controlled ball */}
+      <mesh ref={ref} castShadow receiveShadow>
+        <sphereGeometry args={[0.5, 32, 32]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      
+      {/* Player name that follows the ball using useFrame */}
+      {playerName && (
+        <group ref={nameTagRef}>
+          <Billboard
+            follow={true}
+            lockX={false}
+            lockY={false}
+            lockZ={false}
+          >
+            <Text
+              fontSize={0.15}
+              color="white"
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.02}
+              outlineColor="#000000"
+              renderOrder={1}
+            >
+              {playerName} {isPlayer ? '(You)' : ''}
+            </Text>
+          </Billboard>
+        </group>
+      )}
+    </group>
   );
 };

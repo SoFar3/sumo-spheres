@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { Player } from './Player';
 import { Arena } from './Arena';
 import { FollowCamera } from './FollowCamera';
+import { RemotePlayer } from '../multiplayer/RemotePlayer';
+import { useMultiplayer } from '../../contexts/MultiplayerContext';
 
 // Helper component to update player object reference
 interface PlayerObjectUpdaterProps {
@@ -28,8 +30,10 @@ const PlayerObjectUpdater = ({ playerRef, setPlayerObject }: PlayerObjectUpdater
 export const Game = () => {
   const playerRef = useRef<THREE.Group>(null);
   const [playerObject, setPlayerObject] = useState<THREE.Object3D | null>(null);
+  const { isJoined, players, playerId } = useMultiplayer();
+  const [showLocalDummies, setShowLocalDummies] = useState(true);
 
-  // Create some dummy balls for collision testing
+  // Create some dummy balls for collision testing (only shown in single player mode)
   const dummyBalls = [
     { position: [2, 1, 0] as [number, number, number], color: 'red' },
     { position: [-2, 1, 0] as [number, number, number], color: 'green' },
@@ -38,6 +42,15 @@ export const Game = () => {
     { position: [1.5, 1, 1.5] as [number, number, number], color: 'orange' },
     { position: [-1.5, 1, -1.5] as [number, number, number], color: 'purple' },
   ];
+  
+  // Hide dummy balls when in multiplayer mode
+  useEffect(() => {
+    if (isJoined && Object.keys(players).length > 1) {
+      setShowLocalDummies(false);
+    } else {
+      setShowLocalDummies(true);
+    }
+  }, [isJoined, players]);
 
   return (
     <Canvas shadows camera={{ position: [0, 8, 8], fov: 50 }}>
@@ -78,16 +91,31 @@ export const Game = () => {
           {/* Arena */}
           <Arena radius={5} position={[0, 0, 0]} />
           
-          {/* Player ball */}
+          {/* Local player ball */}
           <group ref={playerRef}>
-            <Player position={[0, 1, 0]} color="hotpink" isPlayer={true} />
+            <Player 
+              position={[0, 1, 0]} 
+              color={isJoined && players[playerId!] ? players[playerId!].color : "hotpink"} 
+              isPlayer={true} 
+              playerName={isJoined && players[playerId!] ? players[playerId!].name : undefined}
+            />
           </group>
           
           {/* Update player object reference when playerRef changes */}
           <PlayerObjectUpdater playerRef={playerRef} setPlayerObject={setPlayerObject} />
           
-          {/* Dummy balls */}
-          {dummyBalls.map((ball, index) => (
+          {/* Remote players in multiplayer mode */}
+          {isJoined && Object.values(players).map(player => (
+            player.id !== playerId && (
+              <RemotePlayer 
+                key={player.id} 
+                player={player} 
+              />
+            )
+          ))}
+          
+          {/* Dummy balls (only in single player mode) */}
+          {showLocalDummies && dummyBalls.map((ball, index) => (
             <Player 
               key={index}
               position={ball.position}

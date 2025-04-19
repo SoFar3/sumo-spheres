@@ -1,0 +1,16 @@
+{
+  "name": "sumo-spheres-server",
+  "version": "1.0.0",
+  "description": "Multiplayer server for Sumo Spheres game",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.7.2",
+    "uuid": "^9.0.1"
+  }
+}
