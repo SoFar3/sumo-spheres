@@ -9,12 +9,13 @@ export const useKeyboardControls = () => {
     right: false,
     rotateLeft: false,
     rotateRight: false,
+    jump: false,
   });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Prevent default behavior for game control keys to avoid scrolling
-      if (['w', 'a', 's', 'd', 'q', 'e', 'W', 'A', 'S', 'D', 'Q', 'E'].includes(e.key)) {
+      if (['w', 'a', 's', 'd', 'q', 'e', ' ', 'W', 'A', 'S', 'D', 'Q', 'E'].includes(e.key)) {
         e.preventDefault();
       }
 
@@ -24,6 +25,7 @@ export const useKeyboardControls = () => {
       if (e.key.toLowerCase() === 'd') setKeys((keys) => ({ ...keys, right: true }));
       if (e.key.toLowerCase() === 'q') setKeys((keys) => ({ ...keys, rotateLeft: true }));
       if (e.key.toLowerCase() === 'e') setKeys((keys) => ({ ...keys, rotateRight: true }));
+      if (e.key === ' ') setKeys((keys) => ({ ...keys, jump: true }));
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -33,6 +35,7 @@ export const useKeyboardControls = () => {
       if (e.key.toLowerCase() === 'd') setKeys((keys) => ({ ...keys, right: false }));
       if (e.key.toLowerCase() === 'q') setKeys((keys) => ({ ...keys, rotateLeft: false }));
       if (e.key.toLowerCase() === 'e') setKeys((keys) => ({ ...keys, rotateRight: false }));
+      if (e.key === ' ') setKeys((keys) => ({ ...keys, jump: false }));
     };
 
     window.addEventListener('keydown', handleKeyDown);

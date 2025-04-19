@@ -16,4 +16,5 @@ export type InputKeys = {
   right: boolean;
   rotateLeft: boolean;
   rotateRight: boolean;
+  jump: boolean;
 };

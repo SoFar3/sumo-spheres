@@ -8,7 +8,9 @@ import * as THREE from 'three';
 export const Player = ({ position, color, isPlayer = false }: PlayerProps) => {
   const keys = useKeyboardControls();
   const [fallen, setFallen] = useState(false);
+  const [canJump, setCanJump] = useState(true);
   const initialPosition = useRef(position);
+  const jumpCooldown = useRef<number | null>(null);
   
   // Create the physics sphere
   const [ref, api] = useSphere(() => ({
@@ -95,6 +97,36 @@ export const Player = ({ position, color, isPlayer = false }: PlayerProps) => {
     return () => clearInterval(fallCheckInterval);
   }, [fallen, isPlayer]);
   
+  // Function to handle jumping
+  const handleJump = () => {
+    if (canJump && isPlayer && !fallen) {
+      // Apply an upward impulse for jumping
+      api.applyImpulse([0, 10, 0], [0, 0, 0]);
+      
+      // Set jump cooldown
+      setCanJump(false);
+      
+      // Clear any existing cooldown
+      if (jumpCooldown.current) {
+        clearTimeout(jumpCooldown.current);
+      }
+      
+      // Set a new cooldown (can jump again after 1 second)
+      jumpCooldown.current = setTimeout(() => {
+        setCanJump(true);
+      }, 1000);
+    }
+  };
+  
+  // Clean up the jump cooldown timer when component unmounts
+  useEffect(() => {
+    return () => {
+      if (jumpCooldown.current) {
+        clearTimeout(jumpCooldown.current);
+      }
+    };
+  }, []);
+  
   // Update player position based on keyboard input
   useFrame(({ camera }) => {
     if (isPlayer && !fallen) {
@@ -115,6 +147,11 @@ export const Player = ({ position, color, isPlayer = false }: PlayerProps) => {
       if (keys.backward) direction.sub(cameraForward);
       if (keys.left) direction.sub(cameraRight);
       if (keys.right) direction.add(cameraRight);
+      
+      // Handle jumping with space bar
+      if (keys.jump && canJump) {
+        handleJump();
+      }
       
       // Normalize the direction vector and apply force
       if (direction.length() > 0) {
