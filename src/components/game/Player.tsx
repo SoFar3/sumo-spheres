@@ -7,7 +7,7 @@ import { PlayerProps } from '../../types';
 import { useMultiplayer } from '../../contexts/MultiplayerContext';
 import * as THREE from 'three';
 
-export const Player = ({ position, color, isPlayer = false, playerName }: PlayerProps) => {
+export const Player = ({ position, color, isPlayer = false, playerName, controlsEnabled = true }: PlayerProps) => {
   const keys = useKeyboardControls();
   const { updatePosition, sendPlayerAction, reportPlayerFell } = useMultiplayer();
   const [fallen, setFallen] = useState(false);
@@ -137,7 +137,7 @@ export const Player = ({ position, color, isPlayer = false, playerName }: Player
   
   // Update player position based on keyboard input and send updates to server
   useFrame(({ camera }) => {
-    if (isPlayer && !fallen) {
+    if (isPlayer && !fallen && controlsEnabled) {
       // Send position updates to server (throttled)
       const currentPos = [currentPosition.current.x, currentPosition.current.y, currentPosition.current.z] as [number, number, number];
       const currentVel = [velocity.current.x, velocity.current.y, velocity.current.z] as [number, number, number];

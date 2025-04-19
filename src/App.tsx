@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
 import { Game } from './components/game/Game';
 import { Lobby } from './components/multiplayer/Lobby';
 import { MultiplayerProvider } from './contexts/MultiplayerContext';
+import { setControlsEnabled } from './hooks/useKeyboardControls';
 
 function App() {
   const [gameStarted, setGameStarted] = useState(false);
+  
+  // Enable/disable controls based on game state
+  useEffect(() => {
+    setControlsEnabled(gameStarted);
+  }, [gameStarted]);
   
   return (
     <MultiplayerProvider>
@@ -18,7 +24,7 @@ function App() {
         <div className="game-container">
           {/* Show lobby until game starts */}
           {!gameStarted && <Lobby onGameStart={() => setGameStarted(true)} />}
-          <Game />
+          <Game gameStarted={gameStarted} />
         </div>
         
         <div className="game-footer">

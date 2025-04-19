@@ -4,6 +4,7 @@ export interface PlayerProps {
   isPlayer?: boolean;
   playerId?: string;
   playerName?: string;
+  controlsEnabled?: boolean;
 }
 
 export interface PlayerData {

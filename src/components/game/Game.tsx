@@ -27,7 +27,11 @@ const PlayerObjectUpdater = ({ playerRef, setPlayerObject }: PlayerObjectUpdater
   return null;
 };
 
-export const Game = () => {
+interface GameProps {
+  gameStarted?: boolean;
+}
+
+export const Game = ({ gameStarted = false }: GameProps) => {
   const playerRef = useRef<THREE.Group>(null);
   const [playerObject, setPlayerObject] = useState<THREE.Object3D | null>(null);
   const { isJoined, players, playerId } = useMultiplayer();
@@ -98,6 +102,7 @@ export const Game = () => {
               color={isJoined && players[playerId!] ? players[playerId!].color : "hotpink"} 
               isPlayer={true} 
               playerName={isJoined && players[playerId!] ? players[playerId!].name : undefined}
+              controlsEnabled={gameStarted}
             />
           </group>
           

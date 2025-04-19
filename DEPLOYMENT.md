@@ -61,7 +61,7 @@ Before deployment, ensure your project is properly configured:
 4. **Set environment variables on Heroku**
    ```
    heroku config:set NODE_ENV=production
-   heroku config:set CLIENT_URL=https://your-vercel-frontend-url.vercel.app
+   heroku config:set CLIENT_URL=https://sumo-spheres.vercel.app
    ```
 
 5. **Verify your deployment**
