@@ -85,12 +85,17 @@ export const Game = ({ gameStarted = false }: GameProps) => {
         
         {/* Physics world */}
         <Physics 
-          gravity={[0, -20, 0]} // Increased gravity for better falling effect
+          gravity={[0, -17, 0]} // Moderate gravity for balanced feel
           defaultContactMaterial={{
-            friction: 0.2,
-            restitution: 0.8, // More bounce
+            friction: 0.15, // Balanced friction
+            restitution: 0.5, // Moderate bounce
+            contactEquationStiffness: 1200, // Increased stiffness for better close-contact interactions
+            contactEquationRelaxation: 2, // Lower relaxation for more immediate response
+            frictionEquationStiffness: 1000, // Increased friction stiffness for better pushing
+            frictionEquationRelaxation: 2, // Lower friction relaxation for more immediate response
           }}
-          iterations={8} // More physics iterations for stability
+          allowSleep={false} // Prevent objects from sleeping to maintain continuous contact forces
+          iterations={12} // More iterations for better contact resolution
         >
           {/* Arena */}
           <Arena radius={5} position={[0, 0, 0]} />

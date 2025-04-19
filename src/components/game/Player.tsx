@@ -18,16 +18,15 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
   
   // Create the physics sphere
   const [ref, api] = useSphere(() => ({
-    mass: 1,
+    mass: 0.8, // Increased mass for more weight
     position,
     args: [0.5], // Radius of the sphere
     material: {
-      friction: 0.2,
-      restitution: 0.8, // Bounciness
+      friction: 0.2, // Increased friction for better pushing
+      restitution: 0.4, // Reduced bounciness for more solid feel
     },
-    // Add a sleep threshold to improve performance
-    sleepSpeedLimit: 0.1,
-    sleepTimeLimit: 1,
+    linearDamping: 0.25, // Balanced damping
+    angularDamping: 0.4, // Increased angular damping for more stability
     // Add collision filtering to ensure proper physics
     collisionFilterGroup: 1,
     collisionFilterMask: 1,
@@ -102,11 +101,39 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
     return () => clearInterval(fallCheckInterval);
   }, [fallen, isPlayer, reportPlayerFell]);
   
+  // Track consecutive jumps for bunny hop limitation
+  const consecutiveJumps = useRef(0);
+  const lastJumpTime = useRef(0);
+  const maxConsecutiveJumps = 3; // Maximum number of consecutive jumps allowed
+  
   // Function to handle jumping
   const handleJump = () => {
     if (canJump && isPlayer && !fallen) {
+      const now = Date.now();
+      const timeSinceLastJump = now - lastJumpTime.current;
+      
+      // Check if this is a consecutive jump (within 500ms of landing)
+      if (timeSinceLastJump < 500) {
+        consecutiveJumps.current += 1;
+      } else {
+        consecutiveJumps.current = 0;
+      }
+      
+      // Calculate jump force based on consecutive jumps (bunny hop mechanic with limitations)
+      let jumpForce = 7; // Base jump force - shorter jump
+      
+      // Bunny hop: Each consecutive jump gets higher, up to a limit
+      if (consecutiveJumps.current > 0 && consecutiveJumps.current < maxConsecutiveJumps) {
+        jumpForce += consecutiveJumps.current * 1.5; // Increase jump force for bunny hops
+      } else if (consecutiveJumps.current >= maxConsecutiveJumps) {
+        jumpForce = 5; // Reduced jump force after max consecutive jumps to limit exploitation
+      }
+      
       // Apply an upward impulse for jumping
-      api.applyImpulse([0, 10, 0], [0, 0, 0]);
+      api.applyImpulse([0, jumpForce, 0], [0, 0, 0]);
+      
+      // Update last jump time
+      lastJumpTime.current = now;
       
       // Notify other players about the jump action
       sendPlayerAction('jump');
@@ -119,10 +146,10 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
         clearTimeout(jumpCooldown.current);
       }
       
-      // Set a new cooldown (can jump again after 1 second)
+      // Set a new cooldown (can jump again after 350ms - shorter for better responsiveness)
       jumpCooldown.current = setTimeout(() => {
         setCanJump(true);
-      }, 1000);
+      }, 350);
     }
   };
   
@@ -135,8 +162,29 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
     };
   }, []);
   
+  // Store nearby players for proximity force calculations
+  const nearbyPlayers = useRef<THREE.Object3D[]>([]);
+  
   // Update player position based on keyboard input and send updates to server
-  useFrame(({ camera }) => {
+  useFrame(({ scene, camera }) => {
+    // Update nearby players list for proximity force calculations
+    if (isPlayer) {
+      // Find all other player balls in the scene
+      nearbyPlayers.current = [];
+      scene.traverse((object) => {
+        // Skip self and non-mesh objects
+        if (object !== ref.current && object.type === 'Mesh') {
+          // Type assertion to access Mesh properties
+          const mesh = object as THREE.Mesh;
+          
+          if (mesh.geometry instanceof THREE.SphereGeometry && 
+              mesh.geometry.parameters.radius === 0.5) {
+            nearbyPlayers.current.push(object);
+          }
+        }
+      });
+    }
+    
     if (isPlayer && !fallen && controlsEnabled) {
       // Send position updates to server (throttled)
       const currentPos = [currentPosition.current.x, currentPosition.current.y, currentPosition.current.z] as [number, number, number];
@@ -178,14 +226,48 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
       
       // Normalize the direction vector and apply force
       if (direction.length() > 0) {
-        direction.normalize().multiplyScalar(8); // Increased force strength
+        direction.normalize().multiplyScalar(8); // Reduced force for more balanced movement
         api.applyForce([direction.x, 0, direction.z], [0, 0, 0]);
       }
       
       // Apply a small drag force to prevent infinite sliding
       if (velocity.current.length() > 0.1) {
-        const drag = velocity.current.clone().negate().multiplyScalar(0.1); // Increased drag
+        // Apply more drag at higher speeds to limit maximum velocity
+        const currentSpeed = velocity.current.length();
+        const dragFactor = Math.min(0.08, 0.05 + (currentSpeed * 0.005)); // Progressive drag that increases with speed
+        
+        const drag = velocity.current.clone().negate().multiplyScalar(dragFactor);
         api.applyForce([drag.x, 0, drag.z], [0, 0, 0]);
+      }
+      
+      // Apply proximity forces to nearby players (pushing effect when close)
+      if (nearbyPlayers.current.length > 0 && ref.current) {
+        const selfPosition = new THREE.Vector3();
+        ref.current.getWorldPosition(selfPosition);
+        
+        nearbyPlayers.current.forEach(otherBall => {
+          const otherPosition = new THREE.Vector3();
+          otherBall.getWorldPosition(otherPosition);
+          
+          // Calculate distance and direction
+          const distance = selfPosition.distanceTo(otherPosition);
+          
+          // Only apply force if balls are close but not colliding
+          if (distance < 1.5 && distance > 1.0) {
+            // Direction from other ball to this ball
+            const direction = new THREE.Vector3().subVectors(selfPosition, otherPosition).normalize();
+            
+            // Calculate force strength based on proximity (stronger as they get closer)
+            const proximityFactor = 1.0 - (distance - 1.0) / 0.5; // 0 at distance 1.5, 1 at distance 1.0
+            const forceStrength = 2.0 * proximityFactor; // Adjust multiplier for desired push strength
+            
+            // Apply the proximity force
+            api.applyForce(
+              [direction.x * forceStrength, 0, direction.z * forceStrength],
+              [0, 0, 0]
+            );
+          }
+        });
       }
     }
   });

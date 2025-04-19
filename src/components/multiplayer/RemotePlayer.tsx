@@ -12,13 +12,15 @@ interface RemotePlayerProps {
 export const RemotePlayer: React.FC<RemotePlayerProps> = ({ player }) => {
   // Create a physics sphere for the remote player
   const [ref, api] = useSphere(() => ({
-    mass: 1,
+    mass: 0.8, // Increased mass for more weight (matching local player)
     position: player.position,
     args: [0.5], // Radius of the sphere
     material: {
-      friction: 0.2,
-      restitution: 0.8, // Bounciness
+      friction: 0.2, // Increased friction for better pushing
+      restitution: 0.4, // Reduced bounciness for more solid feel
     },
+    linearDamping: 0.25, // Balanced damping
+    angularDamping: 0.4, // Increased angular damping for more stability
     type: 'Dynamic',
     collisionFilterGroup: 1,
     collisionFilterMask: 1,
