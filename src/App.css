@@ -1,0 +1,61 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  background: linear-gradient(to bottom, #1a1a2e, #16213e);
+  color: white;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.game-header {
+  padding: 1rem;
+  text-align: center;
+  z-index: 10;
+}
+
+.game-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  color: #e94560;
+  text-shadow: 0 0 10px rgba(233, 69, 96, 0.5);
+}
+
+.game-header p {
+  font-size: 1rem;
+  color: #ccc;
+}
+
+.game-container {
+  flex: 1;
+  width: 100%;
+  position: relative;
+}
+
+.game-container canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.game-footer {
+  padding: 0.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #888;
+  background-color: rgba(0, 0, 0, 0.2);
+}
