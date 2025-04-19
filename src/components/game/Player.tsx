@@ -7,6 +7,18 @@ import { PlayerProps } from '../../types';
 import { useMultiplayer } from '../../contexts/MultiplayerContext';
 import * as THREE from 'three';
 
+// Throttle function to limit how often a function can be called
+function throttle<T extends (...args: any[]) => void>(func: T, limit: number): T {
+  let inThrottle = false;
+  return ((...args: Parameters<T>) => {
+    if (!inThrottle) {
+      func(...args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  }) as T;
+}
+
 export const Player = ({ position, color, isPlayer = false, playerName, controlsEnabled = true }: PlayerProps) => {
   const keys = useKeyboardControls();
   const { updatePosition, sendPlayerAction, reportPlayerFell } = useMultiplayer();
@@ -36,6 +48,18 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
   const velocity = useRef<THREE.Vector3>(new THREE.Vector3());
   const currentPosition = useRef<THREE.Vector3>(new THREE.Vector3(position[0], position[1], position[2]));
   
+  // Create a throttled function to send position updates
+  const sendPositionThrottled = useRef<(position: [number, number, number], rotation?: [number, number, number], velocity?: [number, number, number]) => void>(() => {});
+  useEffect(() => {
+    // Create a throttled function to send position and velocity updates
+    sendPositionThrottled.current = throttle(
+      (position: [number, number, number], rotation?: [number, number, number], velocity?: [number, number, number]) => {
+        updatePosition(position, rotation, velocity);
+      }, 
+      50
+    ); // Send updates every 50ms maximum
+  }, [updatePosition]);
+
   // Subscribe to physics updates for this body
   useEffect(() => {
     // Subscribe to velocity updates
@@ -165,6 +189,10 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
   // Store nearby players for proximity force calculations
   const nearbyPlayers = useRef<THREE.Object3D[]>([]);
   
+  // Store collision state
+  const lastCollisionTime = useRef(0);
+  const collisionCooldown = 100; // ms between collision processing
+  
   // Update player position based on keyboard input and send updates to server
   useFrame(({ scene, camera }) => {
     // Update nearby players list for proximity force calculations
@@ -186,19 +214,13 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
     }
     
     if (isPlayer && !fallen && controlsEnabled) {
-      // Send position updates to server (throttled)
+      // Send position and velocity updates to server (throttled)
       const currentPos = [currentPosition.current.x, currentPosition.current.y, currentPosition.current.z] as [number, number, number];
       const currentVel = [velocity.current.x, velocity.current.y, velocity.current.z] as [number, number, number];
+      const currentRot = [0, 0, 0] as [number, number, number]; // Default rotation if needed
       
-      // Only send updates if position has changed significantly
-      const positionChanged = (
-        Math.abs(currentPos[0] - lastReportedPosition.current[0]) > 0.1 ||
-        Math.abs(currentPos[1] - lastReportedPosition.current[1]) > 0.1 ||
-        Math.abs(currentPos[2] - lastReportedPosition.current[2]) > 0.1
-      );
-      
-      if (positionChanged) {
-        updatePosition(currentPos, undefined, currentVel);
+      if (sendPositionThrottled.current) {
+        sendPositionThrottled.current(currentPos, currentRot, currentVel);
         lastReportedPosition.current = currentPos;
       }
       // Get camera's forward and right vectors for movement relative to camera
@@ -244,6 +266,7 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
       if (nearbyPlayers.current.length > 0 && ref.current) {
         const selfPosition = new THREE.Vector3();
         ref.current.getWorldPosition(selfPosition);
+        const currentTime = Date.now();
         
         nearbyPlayers.current.forEach(otherBall => {
           const otherPosition = new THREE.Vector3();
@@ -252,8 +275,32 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
           // Calculate distance and direction
           const distance = selfPosition.distanceTo(otherPosition);
           
-          // Only apply force if balls are close but not colliding
-          if (distance < 1.5 && distance > 1.0) {
+          // Handle collisions - balls are actually colliding
+          if (distance <= 1.0 && currentTime - lastCollisionTime.current > collisionCooldown) {
+            // Direction from other ball to this ball
+            const direction = new THREE.Vector3().subVectors(selfPosition, otherPosition).normalize();
+            
+            // Calculate collision impact based on current velocity
+            const speed = velocity.current.length();
+            const impactForce = Math.max(5, speed * 3); // Base force + speed multiplier
+            
+            // Apply stronger rebound force on collision
+            api.applyImpulse(
+              [direction.x * impactForce, 0, direction.z * impactForce],
+              [0, 0, 0]
+            );
+            
+            // Update collision time
+            lastCollisionTime.current = currentTime;
+            
+            // Add a small upward force for more dramatic collisions at high speeds
+            if (speed > 5) {
+              const upwardForce = Math.min(speed * 0.5, 4); // Cap the upward force
+              api.applyImpulse([0, upwardForce, 0], [0, 0, 0]);
+            }
+          }
+          // Only apply proximity force if balls are close but not colliding
+          else if (distance < 1.5 && distance > 1.0) {
             // Direction from other ball to this ball
             const direction = new THREE.Vector3().subVectors(selfPosition, otherPosition).normalize();
             
