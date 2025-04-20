@@ -1,23 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useMultiplayer } from '../../contexts/MultiplayerContext';
+import React, { useState } from 'react';
+import { useMultiplayer, GameState } from '../../contexts/MultiplayerContext';
 
-interface LobbyProps {
-  onGameStart: () => void;
-}
-
-export const Lobby: React.FC<LobbyProps> = ({ onGameStart }) => {
-  const { isConnected, isJoined, joinGame, players, playerId } = useMultiplayer();
+export const Lobby: React.FC = () => {
+  const { isConnected, isJoined, joinGame, players, playerId, startGame, maxPlayers, gameState } = useMultiplayer();
+  
+  // If game state is not LOBBY, don't show the lobby
+  if (gameState !== GameState.LOBBY) {
+    return null;
+  }
   const [playerName, setPlayerName] = useState('');
   const [roomId, setRoomId] = useState('default');
-  const [showLobby, setShowLobby] = useState(true);
-
-  // Start the game when successfully joined
-  useEffect(() => {
-    if (isJoined) {
-      setShowLobby(false);
-      onGameStart();
-    }
-  }, [isJoined, onGameStart]);
 
   const handleJoinGame = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,8 +17,10 @@ export const Lobby: React.FC<LobbyProps> = ({ onGameStart }) => {
     
     joinGame(playerName, roomId);
   };
-
-  if (!showLobby) return null;
+  
+  const handleStartGame = () => {
+    startGame();
+  };
 
   return (
     <div className="lobby-container">
@@ -77,6 +71,9 @@ export const Lobby: React.FC<LobbyProps> = ({ onGameStart }) => {
         ) : (
           <div className="waiting-room">
             <h3>Players in Room:</h3>
+            <div className="player-count">
+              {Object.keys(players).length} / {maxPlayers} players
+            </div>
             <ul className="player-list">
               {Object.values(players).map((player) => (
                 <li key={player.id} className={player.id === playerId ? 'current-player' : ''}>
@@ -84,6 +81,16 @@ export const Lobby: React.FC<LobbyProps> = ({ onGameStart }) => {
                 </li>
               ))}
             </ul>
+            
+            {/* Only show start game button when there are at least 2 players */}
+            {Object.keys(players).length >= 2 && (
+              <button 
+                className="start-game-button" 
+                onClick={handleStartGame}
+              >
+                Start Game
+              </button>
+            )}
           </div>
         )}
       </div>

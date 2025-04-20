@@ -2,17 +2,29 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import * as socketService from '../services/socketService';
 import { PlayerData } from '../types';
 
+// Game states
+export enum GameState {
+  LOBBY = 'lobby',
+  PLAYING = 'playing',
+  GAME_OVER = 'gameOver'
+}
+
 interface MultiplayerContextType {
   isConnected: boolean;
   isJoined: boolean;
   playerId: string | null;
   players: Record<string, PlayerData>;
   roomId: string | null;
+  gameState: GameState;
+  gameTimeRemaining: number;
+  maxPlayers: number;
   joinGame: (playerName: string, roomId?: string) => void;
   updatePosition: (position: [number, number, number], rotation?: [number, number, number], velocity?: [number, number, number]) => void;
   sendPlayerAction: (action: string) => void;
   reportPlayerFell: () => void;
   reportKnockout: (targetId: string) => void;
+  startGame: () => void;
+  returnToLobby: () => void;
 }
 
 const defaultContext: MultiplayerContextType = {
@@ -21,11 +33,16 @@ const defaultContext: MultiplayerContextType = {
   playerId: null,
   players: {},
   roomId: null,
+  gameState: GameState.LOBBY,
+  gameTimeRemaining: 0,
+  maxPlayers: 8,
   joinGame: () => {},
   updatePosition: () => {},
   sendPlayerAction: () => {},
   reportPlayerFell: () => {},
   reportKnockout: () => {},
+  startGame: () => {},
+  returnToLobby: () => {},
 };
 
 const MultiplayerContext = createContext<MultiplayerContextType>(defaultContext);
@@ -46,6 +63,9 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [players, setPlayers] = useState<Record<string, PlayerData>>({});
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [gameState, setGameState] = useState<GameState>(GameState.LOBBY);
+  const [gameTimeRemaining, setGameTimeRemaining] = useState(300); // 5 minutes in seconds
+  const maxPlayers = 8;
 
   // Initialize socket connection
   useEffect(() => {
@@ -82,6 +102,10 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
       setPlayerId(data.playerId);
       setPlayers(data.players);
       setRoomId(data.roomId);
+      setGameState(data.gameState || GameState.LOBBY);
+      if (data.gameTimeRemaining) {
+        setGameTimeRemaining(data.gameTimeRemaining);
+      }
     });
 
     // Handle player joined event
@@ -132,6 +156,39 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
         };
       });
     });
+    
+    // Handle game state update event
+    const gameStateUpdateUnsubscribe = socketService.onEvent('game_state_update', (data: any) => {
+      setGameState(data.gameState);
+      if (data.gameTimeRemaining !== undefined) {
+        setGameTimeRemaining(data.gameTimeRemaining);
+      }
+    });
+    
+    // Handle game timer update
+    const gameTimerUpdateUnsubscribe = socketService.onEvent('game_timer_update', (data: any) => {
+      setGameTimeRemaining(data.timeRemaining);
+    });
+    
+    // Handle game over event
+    const gameOverUnsubscribe = socketService.onEvent('game_over', (data: any) => {
+      setGameState(GameState.GAME_OVER);
+      // Update final scores
+      if (data.finalScores) {
+        setPlayers(prev => {
+          const newPlayers = { ...prev };
+          Object.keys(data.finalScores).forEach(playerId => {
+            if (newPlayers[playerId]) {
+              newPlayers[playerId] = {
+                ...newPlayers[playerId],
+                score: data.finalScores[playerId]
+              };
+            }
+          });
+          return newPlayers;
+        });
+      }
+    });
 
     // Clean up event listeners
     return () => {
@@ -140,6 +197,9 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
       playerLeftUnsubscribe();
       playerMovedUnsubscribe();
       scoreUpdateUnsubscribe();
+      gameStateUpdateUnsubscribe();
+      gameTimerUpdateUnsubscribe();
+      gameOverUnsubscribe();
     };
   }, [isConnected]);
 
@@ -167,6 +227,14 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
   const reportKnockout = (targetId: string) => {
     socketService.reportKnockout(targetId);
   };
+  
+  const startGame = () => {
+    socketService.startGame();
+  };
+  
+  const returnToLobby = () => {
+    socketService.returnToLobby();
+  };
 
   const value = {
     isConnected,
@@ -174,11 +242,16 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
     playerId,
     players,
     roomId,
+    gameState,
+    gameTimeRemaining,
+    maxPlayers,
     joinGame,
     updatePosition,
     sendPlayerAction,
     reportPlayerFell,
-    reportKnockout
+    reportKnockout,
+    startGame,
+    returnToLobby
   };
 
   return (

@@ -27,16 +27,26 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', uptime: process.uptime() });
 });
 
+// Game states
+const GameState = {
+  LOBBY: 'lobby',
+  PLAYING: 'playing',
+  GAME_OVER: 'gameOver'
+};
+
 // Store active players and their data
 const players = {};
 const gameRooms = {};
+const gameTimers = {};
 
 // Create a default game room
 gameRooms['default'] = {
   id: 'default',
   name: 'Main Arena',
   players: {},
-  maxPlayers: 8
+  maxPlayers: 8,
+  gameState: GameState.LOBBY,
+  gameTimeRemaining: 300, // 5 minutes in seconds
 };
 
 io.on('connection', (socket) => {
@@ -90,7 +100,9 @@ io.on('connection', (socket) => {
     socket.emit('game_joined', {
       playerId,
       players: gameRooms[roomId].players,
-      roomId
+      roomId,
+      gameState: gameRooms[roomId].gameState,
+      gameTimeRemaining: gameRooms[roomId].gameTimeRemaining
     });
     
     // Notify other players in the room
@@ -147,6 +159,9 @@ io.on('connection', (socket) => {
     const playerId = players[socket.id].id;
     const roomId = players[socket.id].roomId;
     
+    // Only count scores during active gameplay
+    if (gameRooms[roomId]?.gameState !== GameState.PLAYING) return;
+    
     // Update player score
     if (gameRooms[roomId] && gameRooms[roomId].players[playerId]) {
       gameRooms[roomId].players[playerId].score -= 1;
@@ -166,6 +181,9 @@ io.on('connection', (socket) => {
     const playerId = players[socket.id].id;
     const roomId = players[socket.id].roomId;
     
+    // Only count scores during active gameplay
+    if (gameRooms[roomId]?.gameState !== GameState.PLAYING) return;
+    
     // Update player scores
     if (gameRooms[roomId] && 
         gameRooms[roomId].players[playerId] && 
@@ -180,6 +198,58 @@ io.on('connection', (socket) => {
         score: gameRooms[roomId].players[playerId].score
       });
     }
+  });
+  
+  // Handle starting the game
+  socket.on('start_game', () => {
+    if (!players[socket.id]) return;
+    
+    const roomId = players[socket.id].roomId;
+    if (!gameRooms[roomId]) return;
+    
+    // Only start the game if it's in lobby state
+    if (gameRooms[roomId].gameState !== GameState.LOBBY) return;
+    
+    // Set game state to playing
+    gameRooms[roomId].gameState = GameState.PLAYING;
+    gameRooms[roomId].gameTimeRemaining = 300; // 5 minutes in seconds
+    
+    // Notify all players in the room that the game has started
+    io.to(roomId).emit('game_state_update', {
+      gameState: GameState.PLAYING,
+      gameTimeRemaining: gameRooms[roomId].gameTimeRemaining
+    });
+    
+    // Start the game timer
+    startGameTimer(roomId);
+    
+    console.log(`Game started in room ${roomId}`);
+  });
+  
+  // Handle returning to lobby
+  socket.on('return_to_lobby', () => {
+    if (!players[socket.id]) return;
+    
+    const roomId = players[socket.id].roomId;
+    if (!gameRooms[roomId]) return;
+    
+    // Only return to lobby if the game is over
+    if (gameRooms[roomId].gameState !== GameState.GAME_OVER) return;
+    
+    // Reset game state
+    gameRooms[roomId].gameState = GameState.LOBBY;
+    
+    // Reset all player scores
+    Object.keys(gameRooms[roomId].players).forEach(playerId => {
+      gameRooms[roomId].players[playerId].score = 0;
+    });
+    
+    // Notify all players in the room that we're back in the lobby
+    io.to(roomId).emit('game_state_update', {
+      gameState: GameState.LOBBY
+    });
+    
+    console.log(`Returned to lobby in room ${roomId}`);
   });
   
   // Handle player disconnection
@@ -201,32 +271,107 @@ io.on('connection', (socket) => {
       // If room is empty and not the default room, remove it
       if (roomId !== 'default' && Object.keys(gameRooms[roomId].players).length === 0) {
         delete gameRooms[roomId];
+        
+        // Clear any active game timer for this room
+        if (gameTimers[roomId]) {
+          clearInterval(gameTimers[roomId]);
+          delete gameTimers[roomId];
+        }
       }
     }
     
-    // Remove player from the players list
+    // Remove player from players list
     delete players[socket.id];
     
     console.log(`Player disconnected: ${socket.id}`);
   });
 });
 
+// Start the game timer for a room
+function startGameTimer(roomId) {
+  // Clear any existing timer
+  if (gameTimers[roomId]) {
+    clearInterval(gameTimers[roomId]);
+  }
+  
+  // Create a new timer that ticks every second
+  gameTimers[roomId] = setInterval(() => {
+    // Ensure the room still exists
+    if (!gameRooms[roomId]) {
+      clearInterval(gameTimers[roomId]);
+      delete gameTimers[roomId];
+      return;
+    }
+    
+    // Decrement the time remaining
+    gameRooms[roomId].gameTimeRemaining -= 1;
+    
+    // Send timer update to all players in the room every second
+    io.to(roomId).emit('game_timer_update', {
+      timeRemaining: gameRooms[roomId].gameTimeRemaining
+    });
+    
+    // Check if the game is over
+    if (gameRooms[roomId].gameTimeRemaining <= 0) {
+      // Stop the timer
+      clearInterval(gameTimers[roomId]);
+      delete gameTimers[roomId];
+      
+      // Set game state to game over
+      gameRooms[roomId].gameState = GameState.GAME_OVER;
+      
+      // Get final scores
+      const finalScores = {};
+      Object.keys(gameRooms[roomId].players).forEach(playerId => {
+        finalScores[playerId] = gameRooms[roomId].players[playerId].score;
+      });
+      
+      // Find the winner (player with highest score)
+      let winnerPlayerId = null;
+      let highestScore = -Infinity;
+      
+      Object.keys(gameRooms[roomId].players).forEach(playerId => {
+        const score = gameRooms[roomId].players[playerId].score;
+        if (score > highestScore) {
+          highestScore = score;
+          winnerPlayerId = playerId;
+        }
+      });
+      
+      // Notify all players in the room that the game is over
+      io.to(roomId).emit('game_over', {
+        gameState: GameState.GAME_OVER,
+        finalScores,
+        winnerPlayerId,
+        winnerName: winnerPlayerId ? gameRooms[roomId].players[winnerPlayerId].name : null
+      });
+      
+      console.log(`Game over in room ${roomId}. Winner: ${winnerPlayerId ? gameRooms[roomId].players[winnerPlayerId].name : 'None'}`);
+    }
+  }, 1000); // Update every second
+}
+
 // Helper function to generate a random color
 function getRandomColor() {
-  const colors = [
-    '#FF5733', // Red-orange
-    '#33FF57', // Green
-    '#3357FF', // Blue
-    '#F3FF33', // Yellow
-    '#FF33F3', // Pink
-    '#33FFF3', // Cyan
-    '#FF8C33', // Orange
-    '#8C33FF', // Purple
-    '#FF3333', // Red
-    '#33FF8C', // Mint
-  ];
+  const letters = '0123456789ABCDEF';
+  let color = '#';
   
-  return colors[Math.floor(Math.random() * colors.length)];
+  // Generate a random hex color
+  for (let i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+  
+  // Ensure the color is not too dark or too light
+  const r = parseInt(color.substring(1, 3), 16);
+  const g = parseInt(color.substring(3, 5), 16);
+  const b = parseInt(color.substring(5, 7), 16);
+  
+  // If the color is too dark or too light, generate a new one
+  if ((r + g + b) < 200 || (r + g + b) > 600) {
+    return getRandomColor();
+  }
+  
+  return color;
 }
 
 // Start the server

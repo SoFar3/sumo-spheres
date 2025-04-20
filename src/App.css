@@ -151,6 +151,43 @@
   font-weight: bold;
 }
 
+.player-count {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+.start-game-button {
+  margin-top: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #33aa55;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  animation: pulse 2s infinite;
+}
+
+.start-game-button:hover {
+  background-color: #44cc66;
+  animation: none;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(51, 170, 85, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(51, 170, 85, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(51, 170, 85, 0);
+  }
+}
+
 .game-header {
   padding: 1rem;
   text-align: center;

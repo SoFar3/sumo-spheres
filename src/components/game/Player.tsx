@@ -114,10 +114,12 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
         // Report to server if this is the local player
         if (isPlayer) {
           reportPlayerFell();
-          setTimeout(respawn, 1000);
+          // Consistent respawn time of 3 seconds for all players
+          setTimeout(respawn, 3000);
         } else {
-          // For non-player balls, respawn immediately with a small random delay to prevent physics glitches
-          setTimeout(respawn, Math.random() * 500);
+          // For non-player balls, use the same respawn time for consistency
+          // Add a tiny random offset to prevent physics glitches from simultaneous respawns
+          setTimeout(respawn, 3000 + (Math.random() * 100));
         }
       }
     }, 100); // Check every 100ms

@@ -7,7 +7,8 @@ import { Player } from './Player';
 import { Arena } from './Arena';
 import { FollowCamera } from './FollowCamera';
 import { RemotePlayer } from '../multiplayer/RemotePlayer';
-import { useMultiplayer } from '../../contexts/MultiplayerContext';
+import { useMultiplayer, GameState } from '../../contexts/MultiplayerContext';
+import { GameUI } from '../ui/GameUI';
 
 // Helper component to update player object reference
 interface PlayerObjectUpdaterProps {
@@ -27,14 +28,10 @@ const PlayerObjectUpdater = ({ playerRef, setPlayerObject }: PlayerObjectUpdater
   return null;
 };
 
-interface GameProps {
-  gameStarted?: boolean;
-}
-
-export const Game = ({ gameStarted = false }: GameProps) => {
+export const Game = () => {
   const playerRef = useRef<THREE.Group>(null);
   const [playerObject, setPlayerObject] = useState<THREE.Object3D | null>(null);
-  const { isJoined, players, playerId } = useMultiplayer();
+  const { isJoined, players, playerId, gameState } = useMultiplayer();
   const [showLocalDummies, setShowLocalDummies] = useState(true);
 
   // Create some dummy balls for collision testing (only shown in single player mode)
@@ -57,92 +54,97 @@ export const Game = ({ gameStarted = false }: GameProps) => {
   }, [isJoined, players]);
 
   return (
-    <Canvas shadows camera={{ position: [0, 8, 8], fov: 50 }}>
-      <Suspense fallback={null}>
-        <Stats />
-        
-        {/* Add ambient lighting */}
-        <ambientLight intensity={0.7} />
-        
-        {/* Add directional light for shadows */}
-        <directionalLight
-          position={[10, 10, 5]}
-          intensity={1.5}
-          castShadow
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
-          shadow-camera-far={50}
-          shadow-camera-left={-10}
-          shadow-camera-right={10}
-          shadow-camera-top={10}
-          shadow-camera-bottom={-10}
-        />
-        
-        {/* Add a hemisphere light for better ambient lighting */}
-        <hemisphereLight
-          args={['#ffffff', '#004d99', 0.6]}
-        />
-        
-        {/* Physics world */}
-        <Physics 
-          gravity={[0, -17, 0]} // Moderate gravity for balanced feel
-          defaultContactMaterial={{
-            friction: 0.15, // Balanced friction
-            restitution: 0.5, // Moderate bounce
-            contactEquationStiffness: 1200, // Increased stiffness for better close-contact interactions
-            contactEquationRelaxation: 2, // Lower relaxation for more immediate response
-            frictionEquationStiffness: 1000, // Increased friction stiffness for better pushing
-            frictionEquationRelaxation: 2, // Lower friction relaxation for more immediate response
-          }}
-          allowSleep={false} // Prevent objects from sleeping to maintain continuous contact forces
-          iterations={12} // More iterations for better contact resolution
-        >
-          {/* Arena */}
-          <Arena radius={5} position={[0, 0, 0]} />
+    <div className="game-container">
+      {/* Game UI overlay */}
+      <GameUI />
+      
+      <Canvas shadows camera={{ position: [0, 8, 8], fov: 50 }}>
+        <Suspense fallback={null}>
+          <Stats />
           
-          {/* Local player ball */}
-          <group ref={playerRef}>
-            <Player 
-              position={[0, 1, 0]} 
-              color={isJoined && players[playerId!] ? players[playerId!].color : "hotpink"} 
-              isPlayer={true} 
-              playerName={isJoined && players[playerId!] ? players[playerId!].name : undefined}
-              controlsEnabled={gameStarted}
-            />
-          </group>
+          {/* Add ambient lighting */}
+          <ambientLight intensity={0.7} />
           
-          {/* Update player object reference when playerRef changes */}
-          <PlayerObjectUpdater playerRef={playerRef} setPlayerObject={setPlayerObject} />
+          {/* Add directional light for shadows */}
+          <directionalLight
+            position={[10, 10, 5]}
+            intensity={1.5}
+            castShadow
+            shadow-mapSize-width={2048}
+            shadow-mapSize-height={2048}
+            shadow-camera-far={50}
+            shadow-camera-left={-10}
+            shadow-camera-right={10}
+            shadow-camera-top={10}
+            shadow-camera-bottom={-10}
+          />
           
-          {/* Remote players in multiplayer mode */}
-          {isJoined && Object.values(players).map(player => (
-            player.id !== playerId && (
-              <RemotePlayer 
-                key={player.id} 
-                player={player} 
+          {/* Add a hemisphere light for better ambient lighting */}
+          <hemisphereLight
+            args={['#ffffff', '#004d99', 0.6]}
+          />
+          
+          {/* Physics world */}
+          <Physics 
+            gravity={[0, -17, 0]} // Moderate gravity for balanced feel
+            defaultContactMaterial={{
+              friction: 0.15, // Balanced friction
+              restitution: 0.5, // Moderate bounce
+              contactEquationStiffness: 1200, // Increased stiffness for better close-contact interactions
+              contactEquationRelaxation: 2, // Lower relaxation for more immediate response
+              frictionEquationStiffness: 1000, // Increased friction stiffness for better pushing
+              frictionEquationRelaxation: 2, // Lower friction relaxation for more immediate response
+            }}
+            allowSleep={false} // Prevent objects from sleeping to maintain continuous contact forces
+            iterations={12} // More iterations for better contact resolution
+          >
+            {/* Arena */}
+            <Arena radius={5} position={[0, 0, 0]} />
+            
+            {/* Local player ball */}
+            <group ref={playerRef}>
+              <Player 
+                position={[0, 1, 0]} 
+                color={isJoined && players[playerId!] ? players[playerId!].color : "hotpink"} 
+                isPlayer={true} 
+                playerName={isJoined && players[playerId!] ? players[playerId!].name : undefined}
+                controlsEnabled={gameState === GameState.PLAYING}
               />
-            )
-          ))}
+            </group>
+            
+            {/* Update player object reference when playerRef changes */}
+            <PlayerObjectUpdater playerRef={playerRef} setPlayerObject={setPlayerObject} />
+            
+            {/* Remote players in multiplayer mode */}
+            {isJoined && Object.values(players).map(player => (
+              player.id !== playerId && (
+                <RemotePlayer 
+                  key={player.id} 
+                  player={player} 
+                />
+              )
+            ))}
+            
+            {/* Dummy balls (only in single player mode) */}
+            {showLocalDummies && dummyBalls.map((ball, index) => (
+              <Player 
+                key={index}
+                position={ball.position}
+                color={ball.color}
+              />
+            ))}
+          </Physics>
           
-          {/* Dummy balls (only in single player mode) */}
-          {showLocalDummies && dummyBalls.map((ball, index) => (
-            <Player 
-              key={index}
-              position={ball.position}
-              color={ball.color}
-            />
-          ))}
-        </Physics>
-        
-        {/* Camera that follows the player */}
-        <FollowCamera target={playerObject} />
-        
-        {/* Environment map for realistic reflections */}
-        <Environment preset="sunset" />
-        
-        {/* Optional controls for debugging - disabled by default */}
-        <OrbitControls enabled={false} />
-      </Suspense>
-    </Canvas>
+          {/* Camera that follows the player */}
+          <FollowCamera target={playerObject} />
+          
+          {/* Environment map for realistic reflections */}
+          <Environment preset="sunset" />
+          
+          {/* Optional controls for debugging - disabled by default */}
+          <OrbitControls enabled={false} />
+        </Suspense>
+      </Canvas>
+    </div>
   );
 };

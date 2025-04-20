@@ -61,6 +61,20 @@ export const initializeSocket = (serverUrl?: string): Socket => {
     triggerCallbacks('score_update', data);
   });
   
+  socket.on('game_state_update', (data) => {
+    console.log('Game state update:', data);
+    triggerCallbacks('game_state_update', data);
+  });
+  
+  socket.on('game_timer_update', (data) => {
+    triggerCallbacks('game_timer_update', data);
+  });
+  
+  socket.on('game_over', (data) => {
+    console.log('Game over:', data);
+    triggerCallbacks('game_over', data);
+  });
+  
   return socket;
 };
 
@@ -97,6 +111,20 @@ export const reportKnockout = (targetId: string) => {
   if (!socket) return;
   
   socket.emit('player_knockout', { targetId });
+};
+
+// Start the game
+export const startGame = () => {
+  if (!socket) return;
+  
+  socket.emit('start_game');
+};
+
+// Return to lobby after game ends
+export const returnToLobby = () => {
+  if (!socket) return;
+  
+  socket.emit('return_to_lobby');
 };
 
 // Register event callback
