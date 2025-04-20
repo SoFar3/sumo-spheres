@@ -115,9 +115,18 @@ export const reportKnockout = (targetId: string) => {
 
 // Start the game
 export const startGame = () => {
-  if (!socket) return;
+  if (!socket) {
+    console.error('Cannot start game: Socket not connected');
+    return;
+  }
   
+  console.log('Emitting start_game event');
   socket.emit('start_game');
+  
+  // Add verification that the event was sent
+  setTimeout(() => {
+    console.log('Socket connected status:', socket?.connected);
+  }, 100);
 };
 
 // Return to lobby after game ends

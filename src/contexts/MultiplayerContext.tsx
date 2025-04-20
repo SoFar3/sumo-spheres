@@ -98,6 +98,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
 
     // Handle game joined event
     const gameJoinedUnsubscribe = socketService.onEvent('game_joined', (data: any) => {
+      console.log("GAME JOINED with state:", data.gameState);
       setIsJoined(true);
       setPlayerId(data.playerId);
       setPlayers(data.players);
@@ -159,6 +160,7 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
     
     // Handle game state update event
     const gameStateUpdateUnsubscribe = socketService.onEvent('game_state_update', (data: any) => {
+      console.log("GAME STATE UPDATE received:", data);
       setGameState(data.gameState);
       if (data.gameTimeRemaining !== undefined) {
         setGameTimeRemaining(data.gameTimeRemaining);
@@ -229,11 +231,17 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
   };
   
   const startGame = () => {
+    console.log("Sending start_game event to server");
     socketService.startGame();
   };
   
   const returnToLobby = () => {
+    // Send return to lobby event to server
     socketService.returnToLobby();
+    
+    // Reset local state to force player name entry
+    setIsJoined(false);
+    setPlayerId(null);
   };
 
   const value = {

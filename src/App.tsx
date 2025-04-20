@@ -16,7 +16,7 @@ function AppWrapper() {
 
 // App content that consumes the multiplayer context
 function AppContent() {
-  const { gameState } = useMultiplayer();
+  const { gameState, isConnected, isJoined, players, playerId } = useMultiplayer();
   
   // Enable/disable controls based on game state
   useEffect(() => {
@@ -26,10 +26,20 @@ function AppContent() {
   
   return (
     <div className="app-container">
-      <div className="game-header">
-        <h1>Sumo Spheres</h1>
-        <p>Use WASD keys to move, Space to jump, and Q/E to rotate camera!</p>
-      </div>
+      {/* Only show header in menu/lobby, not during gameplay */}
+      {gameState !== GameState.PLAYING && (
+        <div className="game-header">
+          <h1>Sumo Spheres</h1>
+          <p>
+            <strong>Game Controls:</strong><br />
+            Movement: WASD keys<br />
+            Jump: Space<br />
+            Camera: Right-click + drag to rotate/tilt<br />
+            Zoom: Mouse wheel<br />
+            Optional: Q/E keys to rotate camera
+          </p>
+        </div>
+      )}
       
       <div className="game-container">
         {/* Always show the Game component for the 3D arena */}
@@ -37,11 +47,18 @@ function AppContent() {
         
         {/* Lobby component handles its own visibility based on game state */}
         <Lobby />
+        
+        {/* Debug overlay - consider making this toggleable */}
+        <div className="debug-overlay">
+          <div>Connection: {isConnected ? 'Connected' : 'Disconnected'}</div>
+          <div>Game State: {gameState}</div>
+          <div>Joined: {isJoined ? 'Yes' : 'No'}</div>
+          <div>Player Count: {Object.keys(players).length}</div>
+          <div>Player ID: {playerId || 'None'}</div>
+        </div>
       </div>
       
-      <div className="game-footer">
-        <p>Created with React, TypeScript, and react-three-fiber</p>
-      </div>
+      {/* Footer removed as requested */}
     </div>
   );
 }

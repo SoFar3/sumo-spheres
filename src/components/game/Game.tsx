@@ -34,14 +34,30 @@ export const Game = () => {
   const { isJoined, players, playerId, gameState } = useMultiplayer();
   const [showLocalDummies, setShowLocalDummies] = useState(true);
 
-  // Create some dummy balls for collision testing (only shown in single player mode)
+  // Platform positions to match the Arena component
+  const platformSize = 5;
+  const gapSize = 1.5;
+  
+  // Create 3 dummy balls (plus the player = 4 total) positioned on different platforms
   const dummyBalls = [
-    { position: [2, 1, 0] as [number, number, number], color: 'red' },
-    { position: [-2, 1, 0] as [number, number, number], color: 'green' },
-    { position: [0, 1, 2] as [number, number, number], color: 'blue' },
-    { position: [0, 1, -2] as [number, number, number], color: 'yellow' },
-    { position: [1.5, 1, 1.5] as [number, number, number], color: 'orange' },
-    { position: [-1.5, 1, -1.5] as [number, number, number], color: 'purple' },
+    // Top-right platform
+    { 
+      position: [(platformSize/2) + (gapSize/2) + 1, 1, -(platformSize/2) - (gapSize/2) + 1] as [number, number, number], 
+      color: 'red',
+      name: 'Red Player'
+    },
+    // Bottom-left platform
+    { 
+      position: [-(platformSize/2) - (gapSize/2) + 1, 1, (platformSize/2) + (gapSize/2) + 1] as [number, number, number], 
+      color: 'green',
+      name: 'Green Player'
+    },
+    // Bottom-right platform
+    { 
+      position: [(platformSize/2) + (gapSize/2) + 1, 1, (platformSize/2) + (gapSize/2) + 1] as [number, number, number], 
+      color: 'blue',
+      name: 'Blue Player'
+    },
   ];
   
   // Hide dummy balls when in multiplayer mode
@@ -53,12 +69,13 @@ export const Game = () => {
     }
   }, [isJoined, players]);
 
+  // Use different styling to ensure the canvas is visible
   return (
-    <div className="game-container">
+    <div className="game-container" style={{ position: 'relative', width: '100%', height: '100%', zIndex: 1 }}>
       {/* Game UI overlay */}
       <GameUI />
       
-      <Canvas shadows camera={{ position: [0, 8, 8], fov: 50 }}>
+      <Canvas shadows camera={{ position: [0, 8, 8], fov: 50 }} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
         <Suspense fallback={null}>
           <Stats />
           
@@ -101,13 +118,15 @@ export const Game = () => {
             {/* Arena */}
             <Arena radius={5} position={[0, 0, 0]} />
             
-            {/* Local player ball */}
+            {/* Local player ball - positioned on top-left platform if not joined */}
             <group ref={playerRef}>
               <Player 
-                position={[0, 1, 0]} 
+                position={isJoined && players[playerId!] ? 
+                  players[playerId!].position : 
+                  [-(platformSize/2) - (gapSize/2) + 1, 1, -(platformSize/2) - (gapSize/2) + 1]} 
                 color={isJoined && players[playerId!] ? players[playerId!].color : "hotpink"} 
                 isPlayer={true} 
-                playerName={isJoined && players[playerId!] ? players[playerId!].name : undefined}
+                playerName={isJoined && players[playerId!] ? players[playerId!].name : "You"}
                 controlsEnabled={gameState === GameState.PLAYING}
               />
             </group>

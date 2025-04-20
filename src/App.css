@@ -220,6 +220,24 @@
   height: 100%;
 }
 
+/* Debug overlay */
+.debug-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 10px;
+  border-radius: 5px;
+  font-family: monospace;
+  font-size: 12px;
+  z-index: 1000;
+}
+
+.debug-overlay div {
+  margin-bottom: 5px;
+}
+
 .game-footer {
   padding: 0.5rem;
   text-align: center;

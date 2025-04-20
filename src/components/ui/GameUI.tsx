@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMultiplayer, GameState } from '../../contexts/MultiplayerContext';
 import './GameUI.css';
 

@@ -4,26 +4,23 @@ import { Text, Billboard } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { PlayerData } from '../../types';
 import * as THREE from 'three';
+import { useCollisionPhysics, BALL_PHYSICS_CONFIG } from '../../hooks/useCollisionPhysics';
 
 interface RemotePlayerProps {
   player: PlayerData;
 }
 
 export const RemotePlayer: React.FC<RemotePlayerProps> = ({ player }) => {
-  // Create a physics sphere for the remote player
+  // Create a physics sphere for the remote player using shared physics config
   const [ref, api] = useSphere(() => ({
-    mass: 0.8, // Increased mass for more weight (matching local player)
+    mass: BALL_PHYSICS_CONFIG.mass,
     position: player.position,
-    args: [0.5], // Radius of the sphere
-    material: {
-      friction: 0.2, // Increased friction for better pushing
-      restitution: 0.4, // Reduced bounciness for more solid feel
-    },
-    linearDamping: 0.25, // Balanced damping
-    angularDamping: 0.4, // Increased angular damping for more stability
-    type: 'Dynamic',
-    collisionFilterGroup: 1,
-    collisionFilterMask: 1,
+    args: [BALL_PHYSICS_CONFIG.args[0]], // Extract radius as a single value
+    material: BALL_PHYSICS_CONFIG.material,
+    linearDamping: BALL_PHYSICS_CONFIG.linearDamping,
+    angularDamping: BALL_PHYSICS_CONFIG.angularDamping,
+    collisionFilterGroup: BALL_PHYSICS_CONFIG.collisionFilterGroup,
+    collisionFilterMask: BALL_PHYSICS_CONFIG.collisionFilterMask
   }));
 
   // Update the physics body when the player's position changes
@@ -38,7 +35,7 @@ export const RemotePlayer: React.FC<RemotePlayerProps> = ({ player }) => {
   }, [player.position, player.velocity, api.position, api.velocity]);
 
   // Create refs to track the current position
-  const currentPosition = useRef(new THREE.Vector3());
+  const positionRef = useRef(new THREE.Vector3());
   const nameRef = useRef<THREE.Group>(null);
   
   // Store velocity for collision calculations
@@ -47,7 +44,7 @@ export const RemotePlayer: React.FC<RemotePlayerProps> = ({ player }) => {
   // Update position and velocity refs when player data changes
   useEffect(() => {
     if (player.position) {
-      currentPosition.current.set(player.position[0], player.position[1], player.position[2]);
+      positionRef.current.set(player.position[0], player.position[1], player.position[2]);
     }
     
     if (player.velocity) {
@@ -55,55 +52,36 @@ export const RemotePlayer: React.FC<RemotePlayerProps> = ({ player }) => {
     }
   }, [player.position, player.velocity]);
   
+  // Use the shared collision physics system
+  const { processCollisions } = useCollisionPhysics({
+    ref,
+    api,
+    velocity
+  });
+  
   // Update the name tag position and handle collisions
-  useFrame(({ scene }) => {
-    // Update name tag position
-    if (nameRef.current) {
-      nameRef.current.position.x = currentPosition.current.x;
-      nameRef.current.position.y = currentPosition.current.y + 0.7; // Position above the ball
-      nameRef.current.position.z = currentPosition.current.z;
+  useFrame(() => {
+    // Get the current world position of the ball
+    if (ref.current && nameRef.current) {
+      // Get current position from the physics object
+      const ballPosition = new THREE.Vector3();
+      ref.current.getWorldPosition(ballPosition);
+      
+      // Update the stored position
+      positionRef.current.copy(ballPosition);
+      
+      // Update name tag position to follow the ball
+      nameRef.current.position.x = ballPosition.x;
+      nameRef.current.position.y = ballPosition.y + 0.7; // Position above the ball
+      nameRef.current.position.z = ballPosition.z;
     }
     
-    // Apply collision effects based on velocity
-    if (ref.current && velocity.current.length() > 5) {
-      // Find nearby players for high-speed collisions
-      scene.traverse((object: THREE.Object3D) => {
-        // Skip self and non-mesh objects
-        if (object !== ref.current && object.type === 'Mesh') {
-          // Type assertion to access Mesh properties
-          const mesh = object as THREE.Mesh;
-          
-          if (mesh.geometry instanceof THREE.SphereGeometry && 
-              mesh.geometry.parameters.radius === 0.5) {
-            // Calculate distance between balls
-            const otherPosition = new THREE.Vector3();
-            mesh.getWorldPosition(otherPosition);
-            
-            const selfPosition = new THREE.Vector3();
-            ref.current.getWorldPosition(selfPosition);
-            
-            const distance = selfPosition.distanceTo(otherPosition);
-            
-            // Apply collision effect for high-speed impacts
-            if (distance <= 1.05) {
-              const direction = new THREE.Vector3().subVectors(selfPosition, otherPosition).normalize();
-              const speed = velocity.current.length();
-              const impactForce = Math.max(3, speed * 2);
-              
-              // Apply stronger rebound on collision
-              api.applyImpulse(
-                [direction.x * impactForce, 0, direction.z * impactForce],
-                [0, 0, 0]
-              );
-              
-              // Add upward force for dramatic collisions
-              if (speed > 6) {
-                api.applyImpulse([0, speed * 0.3, 0], [0, 0, 0]);
-              }
-            }
-          }
-        }
-      });
+    // Use shared collision physics
+    if (ref.current) {
+      // Process collisions using the shared hook
+      processCollisions();
+      
+      // Additional RemotePlayer-specific processing could go here
     }
   });
   

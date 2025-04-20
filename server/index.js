@@ -46,7 +46,7 @@ gameRooms['default'] = {
   players: {},
   maxPlayers: 8,
   gameState: GameState.LOBBY,
-  gameTimeRemaining: 300, // 5 minutes in seconds
+  gameTimeRemaining: 60, // 1 minute
 };
 
 io.on('connection', (socket) => {
@@ -57,19 +57,55 @@ io.on('connection', (socket) => {
     // Generate a unique player ID
     const playerId = uuidv4();
     
+    // Platform positions for 4 quadrants (matches the arena component)
+    const platformSize = 5;
+    const gapSize = 1.5;
+    const platformPositions = [
+      // Top-left
+      [
+        -(platformSize/2) - (gapSize/2),
+        1,  // Height above platform
+        -(platformSize/2) - (gapSize/2)
+      ],
+      // Top-right
+      [
+        (platformSize/2) + (gapSize/2),
+        1,
+        -(platformSize/2) - (gapSize/2)
+      ],
+      // Bottom-left
+      [
+        -(platformSize/2) - (gapSize/2),
+        1,
+        (platformSize/2) + (gapSize/2)
+      ],
+      // Bottom-right
+      [
+        (platformSize/2) + (gapSize/2),
+        1,
+        (platformSize/2) + (gapSize/2)
+      ]
+    ];
+    
+    // Get room player count to determine spawn position
+    const playerCount = Object.keys(gameRooms[roomId]?.players || {}).length;
+    const platformIndex = playerCount % 4; // Cycle through platforms
+    
+    // Add small random offset within platform for variation
+    const randomOffset = 1.5;
+    const posX = platformPositions[platformIndex][0] + (Math.random() * randomOffset - randomOffset/2);
+    const posZ = platformPositions[platformIndex][2] + (Math.random() * randomOffset - randomOffset/2);
+    
     // Set up player data
     const playerData = {
       id: playerId,
       socketId: socket.id,
       name: playerName || `Player_${playerId.substring(0, 5)}`,
-      position: [
-        (Math.random() * 4) - 2, // Random x position between -2 and 2
-        1,                       // Start slightly above the arena
-        (Math.random() * 4) - 2  // Random z position between -2 and 2
-      ],
+      position: [posX, platformPositions[platformIndex][1], posZ],
       color: getRandomColor(),
       score: 0,
-      roomId
+      roomId,
+      platformIndex // Track which platform they spawned on
     };
     
     // Add player to the room
@@ -212,7 +248,7 @@ io.on('connection', (socket) => {
     
     // Set game state to playing
     gameRooms[roomId].gameState = GameState.PLAYING;
-    gameRooms[roomId].gameTimeRemaining = 300; // 5 minutes in seconds
+    gameRooms[roomId].gameTimeRemaining = 60; // 1 minute
     
     // Notify all players in the room that the game has started
     io.to(roomId).emit('game_state_update', {

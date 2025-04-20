@@ -18,6 +18,8 @@ export const useKeyboardControls = () => {
     rotateLeft: false,
     rotateRight: false,
     jump: false,
+    zoomIn: false,
+    zoomOut: false,
   });
 
   useEffect(() => {
@@ -28,17 +30,45 @@ export const useKeyboardControls = () => {
       }
       
       // Prevent default behavior for game control keys to avoid scrolling
-      if (['w', 'a', 's', 'd', 'q', 'e', ' ', 'W', 'A', 'S', 'D', 'Q', 'E'].includes(e.key)) {
+      if (['w', 'a', 's', 'd', 'q', 'e', ' ', 'W', 'A', 'S', 'D', 'Q', 'E', 'z', 'x', 'Z', 'X'].includes(e.key)) {
         e.preventDefault();
       }
 
-      if (e.key.toLowerCase() === 'w') setKeys((keys) => ({ ...keys, forward: true }));
-      if (e.key.toLowerCase() === 's') setKeys((keys) => ({ ...keys, backward: true }));
-      if (e.key.toLowerCase() === 'a') setKeys((keys) => ({ ...keys, left: true }));
-      if (e.key.toLowerCase() === 'd') setKeys((keys) => ({ ...keys, right: true }));
-      if (e.key.toLowerCase() === 'q') setKeys((keys) => ({ ...keys, rotateLeft: true }));
-      if (e.key.toLowerCase() === 'e') setKeys((keys) => ({ ...keys, rotateRight: true }));
-      if (e.key === ' ') setKeys((keys) => ({ ...keys, jump: true }));
+      switch (e.code) {
+        case 'KeyW':
+        case 'ArrowUp':
+          setKeys((keys) => ({ ...keys, forward: true }));
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          setKeys((keys) => ({ ...keys, backward: true }));
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          setKeys((keys) => ({ ...keys, left: true }));
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          setKeys((keys) => ({ ...keys, right: true }));
+          break;
+        case 'KeyQ':
+          setKeys((keys) => ({ ...keys, rotateLeft: true }));
+          break;
+        case 'KeyE':
+          setKeys((keys) => ({ ...keys, rotateRight: true }));
+          break;
+        case 'Space':
+          setKeys((keys) => ({ ...keys, jump: true }));
+          break;
+        case 'KeyZ':
+        case 'z':
+          setKeys((keys) => ({ ...keys, zoomIn: true }));
+          break;
+        case 'KeyX':
+        case 'x':
+          setKeys((keys) => ({ ...keys, zoomOut: true }));
+          break;
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -47,13 +77,41 @@ export const useKeyboardControls = () => {
         return;
       }
       
-      if (e.key.toLowerCase() === 'w') setKeys((keys) => ({ ...keys, forward: false }));
-      if (e.key.toLowerCase() === 's') setKeys((keys) => ({ ...keys, backward: false }));
-      if (e.key.toLowerCase() === 'a') setKeys((keys) => ({ ...keys, left: false }));
-      if (e.key.toLowerCase() === 'd') setKeys((keys) => ({ ...keys, right: false }));
-      if (e.key.toLowerCase() === 'q') setKeys((keys) => ({ ...keys, rotateLeft: false }));
-      if (e.key.toLowerCase() === 'e') setKeys((keys) => ({ ...keys, rotateRight: false }));
-      if (e.key === ' ') setKeys((keys) => ({ ...keys, jump: false }));
+      switch (e.code) {
+        case 'KeyW':
+        case 'ArrowUp':
+          setKeys((keys) => ({ ...keys, forward: false }));
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          setKeys((keys) => ({ ...keys, backward: false }));
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          setKeys((keys) => ({ ...keys, left: false }));
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          setKeys((keys) => ({ ...keys, right: false }));
+          break;
+        case 'KeyQ':
+          setKeys((keys) => ({ ...keys, rotateLeft: false }));
+          break;
+        case 'KeyE':
+          setKeys((keys) => ({ ...keys, rotateRight: false }));
+          break;
+        case 'Space':
+          setKeys((keys) => ({ ...keys, jump: false }));
+          break;
+        case 'KeyZ':
+        case 'z':
+          setKeys((keys) => ({ ...keys, zoomIn: false }));
+          break;
+        case 'KeyX':
+        case 'x':
+          setKeys((keys) => ({ ...keys, zoomOut: false }));
+          break;
+      }
     };
     
     // Helper function to check if the event target is an input element

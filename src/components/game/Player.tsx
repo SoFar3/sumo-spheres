@@ -1,8 +1,9 @@
-import { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { useSphere } from '@react-three/cannon';
 import { useFrame } from '@react-three/fiber';
 import { Text, Billboard } from '@react-three/drei';
 import { useKeyboardControls } from '../../hooks/useKeyboardControls';
+import { useCollisionPhysics, BALL_PHYSICS_CONFIG, calculateForce } from '../../hooks/useCollisionPhysics';
 import { PlayerProps } from '../../types';
 import { useMultiplayer } from '../../contexts/MultiplayerContext';
 import * as THREE from 'three';
@@ -19,7 +20,7 @@ function throttle<T extends (...args: any[]) => void>(func: T, limit: number): T
   }) as T;
 }
 
-export const Player = ({ position, color, isPlayer = false, playerName, controlsEnabled = true }: PlayerProps) => {
+export const Player: React.FC<PlayerProps> = ({ position, color, isPlayer = false, playerName, controlsEnabled = true }) => {
   const keys = useKeyboardControls();
   const { updatePosition, sendPlayerAction, reportPlayerFell } = useMultiplayer();
   const [fallen, setFallen] = useState(false);
@@ -28,20 +29,16 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
   const jumpCooldown = useRef<number | null>(null);
   const lastReportedPosition = useRef<[number, number, number]>(position);
   
-  // Create the physics sphere
+  // Create the physics sphere with explicit props to avoid TypeScript errors
   const [ref, api] = useSphere(() => ({
-    mass: 0.8, // Increased mass for more weight
+    mass: BALL_PHYSICS_CONFIG.mass,
     position,
-    args: [0.5], // Radius of the sphere
-    material: {
-      friction: 0.2, // Increased friction for better pushing
-      restitution: 0.4, // Reduced bounciness for more solid feel
-    },
-    linearDamping: 0.25, // Balanced damping
-    angularDamping: 0.4, // Increased angular damping for more stability
-    // Add collision filtering to ensure proper physics
-    collisionFilterGroup: 1,
-    collisionFilterMask: 1,
+    args: [BALL_PHYSICS_CONFIG.args[0]], // Extract radius as a single value
+    material: BALL_PHYSICS_CONFIG.material,
+    linearDamping: BALL_PHYSICS_CONFIG.linearDamping,
+    angularDamping: BALL_PHYSICS_CONFIG.angularDamping,
+    collisionFilterGroup: BALL_PHYSICS_CONFIG.collisionFilterGroup,
+    collisionFilterMask: BALL_PHYSICS_CONFIG.collisionFilterMask
   }));
 
   // Store velocity and position in refs so we can access them in useFrame
@@ -50,6 +47,7 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
   
   // Create a throttled function to send position updates
   const sendPositionThrottled = useRef<(position: [number, number, number], rotation?: [number, number, number], velocity?: [number, number, number]) => void>(() => {});
+  
   useEffect(() => {
     // Create a throttled function to send position and velocity updates
     sendPositionThrottled.current = throttle(
@@ -80,17 +78,17 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
   
   // Function to respawn the player
   const respawn = () => {
-    // Add a small random offset to prevent balls from stacking exactly on top of each other
+    // Add a small random offset to prevent balls from stacking
     const randomOffset = isPlayer ? [0, 0, 0] : [
       (Math.random() - 0.5) * 0.5,
       0,
       (Math.random() - 0.5) * 0.5
     ];
     
-    // Reset position to initial position but slightly above to prevent clipping
+    // Reset position slightly above to prevent clipping
     api.position.set(
       initialPosition.current[0] + randomOffset[0], 
-      initialPosition.current[1] + 1.5, // Higher respawn to ensure it doesn't clip
+      initialPosition.current[1] + 1.5, // Higher respawn
       initialPosition.current[2] + randomOffset[2]
     );
     
@@ -104,7 +102,7 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
 
   // Check if player has fallen off the arena
   useEffect(() => {
-    // Set up an interval to check if the player has fallen below a certain threshold
+    // Set up an interval to check if the player has fallen
     const fallCheckInterval = setInterval(() => {
       // If the player's y position is below -5, they've fallen off
       if (currentPosition.current.y < -5 && !fallen) {
@@ -117,8 +115,7 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
           // Consistent respawn time of 3 seconds for all players
           setTimeout(respawn, 3000);
         } else {
-          // For non-player balls, use the same respawn time for consistency
-          // Add a tiny random offset to prevent physics glitches from simultaneous respawns
+          // For non-player balls, add tiny random offset to prevent physics glitches
           setTimeout(respawn, 3000 + (Math.random() * 100));
         }
       }
@@ -130,7 +127,7 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
   // Track consecutive jumps for bunny hop limitation
   const consecutiveJumps = useRef(0);
   const lastJumpTime = useRef(0);
-  const maxConsecutiveJumps = 3; // Maximum number of consecutive jumps allowed
+  const maxConsecutiveJumps = 3; // Maximum consecutive jumps allowed
   
   // Function to handle jumping
   const handleJump = () => {
@@ -145,18 +142,21 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
         consecutiveJumps.current = 0;
       }
       
-      // Calculate jump force based on consecutive jumps (bunny hop mechanic with limitations)
-      let jumpForce = 7; // Base jump force - shorter jump
+      // Calculate jump force based on consecutive jumps
+      let jumpForce = 7; // Base jump force
       
       // Bunny hop: Each consecutive jump gets higher, up to a limit
       if (consecutiveJumps.current > 0 && consecutiveJumps.current < maxConsecutiveJumps) {
-        jumpForce += consecutiveJumps.current * 1.5; // Increase jump force for bunny hops
+        jumpForce += consecutiveJumps.current * 1.5; // Increase jump force
       } else if (consecutiveJumps.current >= maxConsecutiveJumps) {
-        jumpForce = 5; // Reduced jump force after max consecutive jumps to limit exploitation
+        jumpForce = 5; // Reduced force after max jumps
       }
       
+      // Scale jump force by mass using shared utility
+      const massAdjustedJumpForce = calculateForce(jumpForce);
+      
       // Apply an upward impulse for jumping
-      api.applyImpulse([0, jumpForce, 0], [0, 0, 0]);
+      api.applyImpulse([0, massAdjustedJumpForce, 0], [0, 0, 0]);
       
       // Update last jump time
       lastJumpTime.current = now;
@@ -172,8 +172,8 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
         clearTimeout(jumpCooldown.current);
       }
       
-      // Set a new cooldown (can jump again after 350ms - shorter for better responsiveness)
-      jumpCooldown.current = setTimeout(() => {
+      // Set a new cooldown (can jump again after 350ms)
+      jumpCooldown.current = window.setTimeout(() => {
         setCanJump(true);
       }, 350);
     }
@@ -191,9 +191,12 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
   // Store nearby players for proximity force calculations
   const nearbyPlayers = useRef<THREE.Object3D[]>([]);
   
-  // Store collision state
-  const lastCollisionTime = useRef(0);
-  const collisionCooldown = 100; // ms between collision processing
+  // Use the shared collision physics system
+  const { processCollisions } = useCollisionPhysics({
+    ref, 
+    api,
+    velocity
+  });
   
   // Update player position based on keyboard input and send updates to server
   useFrame(({ scene, camera }) => {
@@ -219,17 +222,18 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
       // Send position and velocity updates to server (throttled)
       const currentPos = [currentPosition.current.x, currentPosition.current.y, currentPosition.current.z] as [number, number, number];
       const currentVel = [velocity.current.x, velocity.current.y, velocity.current.z] as [number, number, number];
-      const currentRot = [0, 0, 0] as [number, number, number]; // Default rotation if needed
+      const currentRot = [0, 0, 0] as [number, number, number]; // Default rotation
       
       if (sendPositionThrottled.current) {
         sendPositionThrottled.current(currentPos, currentRot, currentVel);
         lastReportedPosition.current = currentPos;
       }
-      // Get camera's forward and right vectors for movement relative to camera
+      
+      // Get camera's vectors for movement relative to camera
       const cameraForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
       const cameraRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
       
-      // Project these vectors onto the xz plane and normalize
+      // Project onto the xz plane and normalize
       cameraForward.y = 0;
       cameraRight.y = 0;
       cameraForward.normalize();
@@ -248,9 +252,11 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
         handleJump();
       }
       
-      // Normalize the direction vector and apply force
+      // Normalize the direction vector and apply force adjusted for mass
       if (direction.length() > 0) {
-        direction.normalize().multiplyScalar(8); // Reduced force for more balanced movement
+        // Scale movement force by mass for consistent acceleration
+        const movementForce = calculateForce(8); 
+        direction.normalize().multiplyScalar(movementForce);
         api.applyForce([direction.x, 0, direction.z], [0, 0, 0]);
       }
       
@@ -258,65 +264,42 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
       if (velocity.current.length() > 0.1) {
         // Apply more drag at higher speeds to limit maximum velocity
         const currentSpeed = velocity.current.length();
-        const dragFactor = Math.min(0.08, 0.05 + (currentSpeed * 0.005)); // Progressive drag that increases with speed
+        const dragFactor = Math.min(0.08, 0.05 + (currentSpeed * 0.005));
         
         const drag = velocity.current.clone().negate().multiplyScalar(dragFactor);
         api.applyForce([drag.x, 0, drag.z], [0, 0, 0]);
       }
       
-      // Apply proximity forces to nearby players (pushing effect when close)
+      // Process collisions and handle proximity forces
       if (nearbyPlayers.current.length > 0 && ref.current) {
-        const selfPosition = new THREE.Vector3();
-        ref.current.getWorldPosition(selfPosition);
-        const currentTime = Date.now();
+        // Process all collisions using the shared system
+        const selfPosition = processCollisions();
         
-        nearbyPlayers.current.forEach(otherBall => {
-          const otherPosition = new THREE.Vector3();
-          otherBall.getWorldPosition(otherPosition);
-          
-          // Calculate distance and direction
-          const distance = selfPosition.distanceTo(otherPosition);
-          
-          // Handle collisions - balls are actually colliding
-          if (distance <= 1.0 && currentTime - lastCollisionTime.current > collisionCooldown) {
-            // Direction from other ball to this ball
-            const direction = new THREE.Vector3().subVectors(selfPosition, otherPosition).normalize();
+        // Handle proximity forces (not part of the collision system)
+        if (selfPosition) {
+          nearbyPlayers.current.forEach(otherBall => {
+            const otherPosition = new THREE.Vector3();
+            otherBall.getWorldPosition(otherPosition);
             
-            // Calculate collision impact based on current velocity
-            const speed = velocity.current.length();
-            const impactForce = Math.max(5, speed * 3); // Base force + speed multiplier
+            // Calculate distance
+            const distance = selfPosition.distanceTo(otherPosition);
             
-            // Apply stronger rebound force on collision
-            api.applyImpulse(
-              [direction.x * impactForce, 0, direction.z * impactForce],
-              [0, 0, 0]
-            );
-            
-            // Update collision time
-            lastCollisionTime.current = currentTime;
-            
-            // Add a small upward force for more dramatic collisions at high speeds
-            if (speed > 5) {
-              const upwardForce = Math.min(speed * 0.5, 4); // Cap the upward force
-              api.applyImpulse([0, upwardForce, 0], [0, 0, 0]);
+            // Only apply proximity force if balls are close but not colliding
+            if (distance < 1.5 && distance > 1.0) {
+              // Direction from other ball to this ball
+              const direction = new THREE.Vector3().subVectors(selfPosition, otherPosition).normalize();
+              
+              // Calculate a mild proximity force to slightly push balls apart
+              const proximityForce = 0.8 * (1.5 - distance);
+              
+              // Apply a gentle push away
+              api.applyForce(
+                [direction.x * proximityForce, 0, direction.z * proximityForce],
+                [0, 0, 0]
+              );
             }
-          }
-          // Only apply proximity force if balls are close but not colliding
-          else if (distance < 1.5 && distance > 1.0) {
-            // Direction from other ball to this ball
-            const direction = new THREE.Vector3().subVectors(selfPosition, otherPosition).normalize();
-            
-            // Calculate force strength based on proximity (stronger as they get closer)
-            const proximityFactor = 1.0 - (distance - 1.0) / 0.5; // 0 at distance 1.5, 1 at distance 1.0
-            const forceStrength = 2.0 * proximityFactor; // Adjust multiplier for desired push strength
-            
-            // Apply the proximity force
-            api.applyForce(
-              [direction.x * forceStrength, 0, direction.z * forceStrength],
-              [0, 0, 0]
-            );
-          }
-        });
+          });
+        }
       }
     }
   });
@@ -341,7 +324,7 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
         <meshStandardMaterial color={color} />
       </mesh>
       
-      {/* Player name that follows the ball using useFrame */}
+      {/* Player name that follows the ball */}
       {playerName && (
         <group ref={nameTagRef}>
           <Billboard
@@ -359,7 +342,7 @@ export const Player = ({ position, color, isPlayer = false, playerName, controls
               outlineColor="#000000"
               renderOrder={1}
             >
-              {playerName} {isPlayer ? '(You)' : ''}
+              {playerName}
             </Text>
           </Billboard>
         </group>

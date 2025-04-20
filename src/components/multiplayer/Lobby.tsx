@@ -19,6 +19,7 @@ export const Lobby: React.FC = () => {
   };
   
   const handleStartGame = () => {
+    console.log("Start Game button clicked");
     startGame();
   };
 
@@ -82,8 +83,8 @@ export const Lobby: React.FC = () => {
               ))}
             </ul>
             
-            {/* Only show start game button when there are at least 2 players */}
-            {Object.keys(players).length >= 2 && (
+            {/* Allow starting the game with any number of players for development */}
+            {Object.keys(players).length >= 1 && (
               <button 
                 className="start-game-button" 
                 onClick={handleStartGame}

@@ -20,7 +20,11 @@ export interface PlayerData {
 }
 
 export interface ArenaProps {
-  radius: number;
+  // Legacy prop for backward compatibility
+  radius?: number;
+  // New props for rectangular platforms
+  platformSize?: number;
+  gapSize?: number;
   position: [number, number, number];
 }
 
@@ -32,4 +36,6 @@ export type InputKeys = {
   rotateLeft: boolean;
   rotateRight: boolean;
   jump: boolean;
+  zoomIn: boolean;
+  zoomOut: boolean;
 };
