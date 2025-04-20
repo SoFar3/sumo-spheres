@@ -17,6 +17,7 @@ export interface PlayerData {
   socketId?: string;
   rotation?: [number, number, number];
   velocity?: [number, number, number];
+  fallen?: boolean;
 }
 
 export interface ArenaProps {

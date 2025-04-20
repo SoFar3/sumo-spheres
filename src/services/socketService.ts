@@ -56,6 +56,16 @@ export const initializeSocket = (serverUrl?: string): Socket => {
     triggerCallbacks('player_action', data);
   });
   
+  socket.on('player_fell', (data) => {
+    console.log('Player fell:', data.playerId);
+    triggerCallbacks('player_fell', data);
+  });
+  
+  socket.on('player_respawn', (data) => {
+    console.log('Player respawning:', data.playerId, 'at position:', data.position);
+    triggerCallbacks('player_respawn', data);
+  });
+  
   socket.on('score_update', (data) => {
     console.log('Score update:', data);
     triggerCallbacks('score_update', data);

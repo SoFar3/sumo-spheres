@@ -172,6 +172,40 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
       setGameTimeRemaining(data.timeRemaining);
     });
     
+    // Handle player fell event
+    const playerFellUnsubscribe = socketService.onEvent('player_fell', (data: any) => {
+      console.log('Player fell event received:', data.playerId);
+      setPlayers(prev => {
+        if (!prev[data.playerId]) return prev;
+        
+        return {
+          ...prev,
+          [data.playerId]: {
+            ...prev[data.playerId],
+            fallen: true
+          }
+        };
+      });
+    });
+    
+    // Handle player respawn event
+    const playerRespawnUnsubscribe = socketService.onEvent('player_respawn', (data: any) => {
+      console.log('Player respawn event received:', data.playerId, 'position:', data.position);
+      setPlayers(prev => {
+        if (!prev[data.playerId]) return prev;
+        
+        return {
+          ...prev,
+          [data.playerId]: {
+            ...prev[data.playerId],
+            fallen: false,
+            position: data.position,
+            velocity: [0, 0, 0] // Reset velocity on respawn
+          }
+        };
+      });
+    });
+    
     // Handle game over event
     const gameOverUnsubscribe = socketService.onEvent('game_over', (data: any) => {
       setGameState(GameState.GAME_OVER);
@@ -201,6 +235,8 @@ export const MultiplayerProvider: React.FC<MultiplayerProviderProps> = ({
       scoreUpdateUnsubscribe();
       gameStateUpdateUnsubscribe();
       gameTimerUpdateUnsubscribe();
+      playerFellUnsubscribe();
+      playerRespawnUnsubscribe();
       gameOverUnsubscribe();
     };
   }, [isConnected]);

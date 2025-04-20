@@ -38,27 +38,46 @@ export const Game = () => {
   const platformSize = 5;
   const gapSize = 1.5;
   
-  // Create 3 dummy balls (plus the player = 4 total) positioned on different platforms
-  const dummyBalls = [
+  // Define platform spawn positions for up to 8 players
+  const spawnPositions = [
+    // Top-left platform
+    [-(platformSize/2) - (gapSize/2) + 1, 1, -(platformSize/2) - (gapSize/2) + 1] as [number, number, number],
     // Top-right platform
-    { 
-      position: [(platformSize/2) + (gapSize/2) + 1, 1, -(platformSize/2) - (gapSize/2) + 1] as [number, number, number], 
-      color: 'red',
-      name: 'Red Player'
-    },
+    [(platformSize/2) + (gapSize/2) + 1, 1, -(platformSize/2) - (gapSize/2) + 1] as [number, number, number],
     // Bottom-left platform
-    { 
-      position: [-(platformSize/2) - (gapSize/2) + 1, 1, (platformSize/2) + (gapSize/2) + 1] as [number, number, number], 
-      color: 'green',
-      name: 'Green Player'
-    },
+    [-(platformSize/2) - (gapSize/2) + 1, 1, (platformSize/2) + (gapSize/2) + 1] as [number, number, number],
     // Bottom-right platform
-    { 
-      position: [(platformSize/2) + (gapSize/2) + 1, 1, (platformSize/2) + (gapSize/2) + 1] as [number, number, number], 
-      color: 'blue',
-      name: 'Blue Player'
-    },
+    [(platformSize/2) + (gapSize/2) + 1, 1, (platformSize/2) + (gapSize/2) + 1] as [number, number, number],
+    // Top-left platform with offset (5th player)
+    [-(platformSize/2) - (gapSize/2) + 2, 1, -(platformSize/2) - (gapSize/2) + 2] as [number, number, number],
+    // Top-right platform with offset (6th player)
+    [(platformSize/2) + (gapSize/2), 1, -(platformSize/2) - (gapSize/2)] as [number, number, number],
+    // Bottom-left platform with offset (7th player)
+    [-(platformSize/2) - (gapSize/2), 1, (platformSize/2) + (gapSize/2)] as [number, number, number],
+    // Bottom-right platform with offset (8th player)
+    [(platformSize/2) + (gapSize/2), 1, (platformSize/2) + (gapSize/2)] as [number, number, number],
   ];
+  
+  // Create 3 dummy balls positioned on different platforms
+  const dummyBalls = [
+    { position: spawnPositions[1], color: 'red', name: 'Red Player' },
+    { position: spawnPositions[2], color: 'green', name: 'Green Player' },
+    { position: spawnPositions[3], color: 'blue', name: 'Blue Player' },
+  ];
+  
+  // Calculate spawn position for the current player based on index in players list
+  const getPlayerSpawnPosition = (): [number, number, number] => {
+    if (!isJoined || !playerId || !players || Object.keys(players).length === 0) {
+      return spawnPositions[0]; // Default to first position if not joined
+    }
+    
+    // Get player order by join time (implicit in players object)
+    const playerIds = Object.keys(players);
+    const playerIndex = playerIds.indexOf(playerId);
+    
+    // Assign position based on index, wrap around if needed
+    return spawnPositions[playerIndex % spawnPositions.length];
+  };
   
   // Hide dummy balls when in multiplayer mode
   useEffect(() => {
@@ -123,7 +142,7 @@ export const Game = () => {
               <Player 
                 position={isJoined && players[playerId!] ? 
                   players[playerId!].position : 
-                  [-(platformSize/2) - (gapSize/2) + 1, 1, -(platformSize/2) - (gapSize/2) + 1]} 
+                  getPlayerSpawnPosition()} 
                 color={isJoined && players[playerId!] ? players[playerId!].color : "hotpink"} 
                 isPlayer={true} 
                 playerName={isJoined && players[playerId!] ? players[playerId!].name : "You"}
@@ -135,14 +154,24 @@ export const Game = () => {
             <PlayerObjectUpdater playerRef={playerRef} setPlayerObject={setPlayerObject} />
             
             {/* Remote players in multiplayer mode */}
-            {isJoined && Object.values(players).map(player => (
-              player.id !== playerId && (
+            {isJoined && Object.keys(players).map((id, index) => {
+              const player = players[id];
+              // Skip local player
+              if (player.id === playerId) return null;
+              
+              // Ensure remote player has a position (use default spawn if needed)
+              const playerWithPosition = {
+                ...player,
+                position: player.position || spawnPositions[index % spawnPositions.length]
+              };
+              
+              return (
                 <RemotePlayer 
-                  key={player.id} 
-                  player={player} 
+                  key={id} 
+                  player={playerWithPosition} 
                 />
-              )
-            ))}
+              );
+            })}
             
             {/* Dummy balls (only in single player mode) */}
             {showLocalDummies && dummyBalls.map((ball, index) => (

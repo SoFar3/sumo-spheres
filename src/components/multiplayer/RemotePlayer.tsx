@@ -32,7 +32,17 @@ export const RemotePlayer: React.FC<RemotePlayerProps> = ({ player }) => {
     if (player.velocity) {
       api.velocity.set(...player.velocity);
     }
-  }, [player.position, player.velocity, api.position, api.velocity]);
+    
+    // If respawning (after a fall), apply a small upward force
+    if (player.fallen === false && player.position && player.position[1] > 0.5) {
+      console.log('Remote player respawning:', player.name);
+      // Reset physics state completely
+      api.velocity.set(0, 0, 0);
+      api.angularVelocity.set(0, 0, 0);
+      // Reset position precisely
+      api.position.set(...player.position);
+    }
+  }, [player.position, player.velocity, player.fallen, api.position, api.velocity, api.angularVelocity]);
 
   // Create refs to track the current position
   const positionRef = useRef(new THREE.Vector3());
@@ -40,17 +50,27 @@ export const RemotePlayer: React.FC<RemotePlayerProps> = ({ player }) => {
   
   // Store velocity for collision calculations
   const velocity = useRef(new THREE.Vector3());
+  const currentPlayerState = useRef({
+    fallen: false,
+    lastPosition: new THREE.Vector3()
+  });
   
   // Update position and velocity refs when player data changes
   useEffect(() => {
     if (player.position) {
       positionRef.current.set(player.position[0], player.position[1], player.position[2]);
+      currentPlayerState.current.lastPosition.set(player.position[0], player.position[1], player.position[2]);
     }
     
     if (player.velocity) {
       velocity.current.set(player.velocity[0], player.velocity[1], player.velocity[2]);
     }
-  }, [player.position, player.velocity]);
+    
+    // Track fallen state
+    if (player.fallen !== undefined) {
+      currentPlayerState.current.fallen = player.fallen;
+    }
+  }, [player.position, player.velocity, player.fallen]);
   
   // Use the shared collision physics system
   const { processCollisions } = useCollisionPhysics({

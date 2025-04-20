@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMultiplayer, GameState } from '../../contexts/MultiplayerContext';
 
 export const Lobby: React.FC = () => {
@@ -10,10 +10,24 @@ export const Lobby: React.FC = () => {
   }
   const [playerName, setPlayerName] = useState('');
   const [roomId, setRoomId] = useState('default');
+  const [nameError, setNameError] = useState('');
+
+  // Check if player name is already taken in this room
+  useEffect(() => {
+    // Clear error when name changes
+    setNameError('');
+  }, [playerName]);
 
   const handleJoinGame = (e: React.FormEvent) => {
     e.preventDefault();
     if (!playerName.trim()) return;
+    
+    // Check if the name is already taken in this room
+    const existingNames = Object.values(players).map(player => player.name.toLowerCase());
+    if (existingNames.includes(playerName.toLowerCase())) {
+      setNameError('This name is already taken in this room. Please choose a different name.');
+      return;
+    }
     
     joinGame(playerName, roomId);
   };
@@ -59,6 +73,7 @@ export const Lobby: React.FC = () => {
                 placeholder="default"
               />
               <small>Leave as 'default' to join the main arena</small>
+              {nameError && <div className="name-error">{nameError}</div>}
             </div>
             
             <button 
